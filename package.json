@@ -1,0 +1,23 @@
+{
+  "name": "decky-gemini-ai",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Chat with Google Gemini on your Steam Deck",
+  "scripts": {
+    "build": "rollup -c",
+    "watch": "rollup -c -w"
+  },
+  "devDependencies": {
+    "@decky/api": "^1.0.2",
+    "@decky/rollup": "^1.0.2",
+    "@decky/ui": "^4.7.0",
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-json": "^6.1.0",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-typescript": "^11.1.6",
+    "@types/react": "^18.2.0",
+    "rollup": "^4.0.0",
+    "tslib": "^2.6.2",
+    "typescript": "^5.0.0"
+  }
+}

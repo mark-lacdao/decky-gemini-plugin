@@ -1,0 +1,11 @@
+{
+  "name": "GeminiAI",
+  "author": "You",
+  "flags": [],
+  "api_version": 1,
+  "publish": {
+    "description": "Chat with Google Gemini directly from your Steam Deck.",
+    "image": "",
+    "tags": ["ai", "chat", "utility"]
+  }
+}
