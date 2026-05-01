@@ -1,8 +1,10 @@
 import {
   ButtonItem,
+  ConfirmModal,
   PanelSection,
   PanelSectionRow,
   TextField,
+  showModal,
   staticClasses,
 } from "@decky/ui";
 import { callable, definePlugin } from "@decky/api";
@@ -19,7 +21,37 @@ interface Message {
   content: string;
 }
 
-const DeckyTextField = TextField as unknown as React.FC<any>;
+// ── Modal text input components (keyboard renders above QAM when in a modal) ──
+const ApiKeyModal: FC<{ onSave: (key: string) => void; closeModal?: () => void }> = ({ onSave, closeModal }) => {
+  const [key, setKey] = useState("");
+  const [error, setError] = useState("");
+
+  const handleOK = () => {
+    const trimmed = key.trim();
+    if (!/^([A-Za-z0-9_-]{35,})$/.test(trimmed)) {
+      setError("Please enter a valid Google Gemini API key.");
+      return;
+    }
+    onSave(trimmed);
+    closeModal?.();
+  };
+
+  return (
+    <ConfirmModal strTitle="Gemini API Key" strOKButtonText="Save" onOK={handleOK} onCancel={closeModal} closeModal={closeModal}>
+      <TextField label="API Key" value={key} onChange={(e) => { setKey(e.target.value); setError(""); }} bIsPassword focusOnMount />
+      {error && <div style={{ color: "#ff6b6b", fontSize: 11, marginTop: 8 }}>{error}</div>}
+    </ConfirmModal>
+  );
+};
+
+const MessageInputModal: FC<{ onSend: (text: string) => void; closeModal?: () => void }> = ({ onSend, closeModal }) => {
+  const [value, setValue] = useState("");
+  return (
+    <ConfirmModal strTitle="Message Gemini" strOKButtonText="Send" bOKDisabled={!value.trim()} onOK={() => { onSend(value.trim()); closeModal?.(); }} onCancel={closeModal} closeModal={closeModal}>
+      {React.createElement(TextField as any, { label: "", value, onChange: (e: any) => setValue(e.target.value), focusOnMount: true, multiline: true })}
+    </ConfirmModal>
+  );
+};
 
 interface Styles {
   root: React.CSSProperties;
@@ -192,45 +224,18 @@ const TypingIndicator: FC = () => (
 );
 
 // ── API Key Setup Screen ──────────────────────────────────────────────────────
-const ApiKeyScreen: FC<{ onSave: (key: string) => void }> = ({ onSave }) => {
-  const [key, setKey] = useState("");
-  const [error, setError] = useState("");
-
-  const handleSave = () => {
-    const trimmed = key.trim();
-    // Gemini API keys are typically 39+ chars, alphanumeric, often start with "AIza" or similar
-    if (!/^([A-Za-z0-9_-]{35,})$/.test(trimmed)) {
-      setError("Please enter a valid Google Gemini API key.");
-      return;
-    }
-    onSave(trimmed);
-  };
-
-  return (
-    <div style={styles.keyScreen}>
-      <div style={styles.keyTitle}>🤖 Connect Gemini</div>
-      <div style={styles.keySubtitle}>
-        Enter your <span style={styles.keyLink}>Google Gemini API key</span> to start chatting. Get one at {" "}
-        <span style={styles.keyLink}>ai.google.com</span>
-      </div>
-      <TextField
-        label="Gemini API Key"
-        value={key}
-        onChange={(e) => {
-          setKey(e.target.value);
-          setError("");
-        }}
-        bIsPassword
-      />
-      {error && (
-        <div style={{ color: "#ff6b6b", fontSize: 11 }}>{error}</div>
-      )}
-      <ButtonItem layout="below" onClick={handleSave}>
-        Save & Start Chatting
-      </ButtonItem>
+const ApiKeyScreen: FC<{ onSave: (key: string) => void }> = ({ onSave }) => (
+  <div style={styles.keyScreen}>
+    <div style={styles.keyTitle}>🤖 Connect Gemini</div>
+    <div style={styles.keySubtitle}>
+      Enter your <span style={styles.keyLink}>Google Gemini API key</span> to start chatting. Get one at{" "}
+      <span style={styles.keyLink}>ai.google.com</span>
     </div>
-  );
-};
+    <ButtonItem layout="below" onClick={() => showModal(<ApiKeyModal onSave={onSave} />)}>
+      Enter API Key
+    </ButtonItem>
+  </div>
+);
 
 // ── Chat Screen ───────────────────────────────────────────────────────────────
 const ChatScreen: FC<{ apiKey: string; onResetKey: () => void }> = ({
@@ -238,7 +243,6 @@ const ChatScreen: FC<{ apiKey: string; onResetKey: () => void }> = ({
   onResetKey,
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [models, setModels] = useState<string[]>(["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-1.5-flash"]);
   const [selectedModel, setSelectedModel] = useState<string>("gemini-2.5-flash-lite");
@@ -282,13 +286,11 @@ const ChatScreen: FC<{ apiKey: string; onResetKey: () => void }> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiKey]);
 
-  const sendMessage = async () => {
-    const text = input.trim();
+  const sendMessage = async (text: string) => {
     if (!text || loading) return;
 
     const newMessages: Message[] = [...messages, { role: "user", content: text }];
     setMessages(newMessages);
-    setInput("");
     setLoading(true);
 
     const contents = newMessages.map((msg) => ({
@@ -332,13 +334,6 @@ const ChatScreen: FC<{ apiKey: string; onResetKey: () => void }> = ({
       ]);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
     }
   };
 
@@ -389,7 +384,7 @@ const ChatScreen: FC<{ apiKey: string; onResetKey: () => void }> = ({
         <div ref={bottomRef} />
       </div>
 
-      {/* Model Dropdown above Input */}
+      {/* Model + Input */}
       <div style={{ ...styles.inputRow, flexDirection: "column", alignItems: "stretch", gap: 4 }}>
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
           <select
@@ -403,43 +398,13 @@ const ChatScreen: FC<{ apiKey: string; onResetKey: () => void }> = ({
             ))}
           </select>
         </div>
-        <div style={{ display: "flex", flexDirection: "row", alignItems: "flex-end", gap: 8, width: "100%" }}>
-          <div style={{ flex: 3, minWidth: 0 }}>
-            <DeckyTextField
-              label=""
-              value={input}
-              placeholder="Message Gemini..."
-              focusable
-              multiline
-              focusOnMount
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setInput(e.currentTarget.value)
-              }
-              onKeyDown={handleKeyDown}
-            />
-          </div>
-          <div style={{
-            flex: '0 0 25%',      // don't grow, don't shrink, stay exactly 25%
-            maxWidth: '25%',      // belt-and-suspenders cap
-            height: 44,
-            padding: 0,
-            margin: 0,
-            overflow: 'hidden',   // prevent ButtonItem's internals from bleeding out
-            alignSelf: 'stretch',
-            display: 'flex',
-            alignItems: 'stretch'
-          }}>
-            <div style={{ width: '100%', height: '100%' }}>
-              <ButtonItem
-                layout="below"
-                onClick={sendMessage}
-                disabled={loading || !input.trim()}
-              >
-                ↑
-              </ButtonItem>
-            </div>
-          </div>
-        </div>
+        <ButtonItem
+          layout="below"
+          disabled={loading}
+          onClick={() => showModal(<MessageInputModal onSend={(text) => sendMessage(text)} />)}
+        >
+          {loading ? "Sending…" : "Type a message…"}
+        </ButtonItem>
       </div>
     </div>
   );

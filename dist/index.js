@@ -26,7 +26,27 @@ const definePlugin = (fn) => {
 const getApiKey = callable("get_api_key");
 const setApiKey = callable("set_api_key");
 const clearApiKey = callable("clear_api_key");
-const DeckyTextField = DFL.TextField;
+// ── Modal text input components (keyboard renders above QAM when in a modal) ──
+const ApiKeyModal = ({ onSave, closeModal }) => {
+    const [key, setKey] = SP_REACT.useState("");
+    const [error, setError] = SP_REACT.useState("");
+    const handleOK = () => {
+        const trimmed = key.trim();
+        if (!/^([A-Za-z0-9_-]{35,})$/.test(trimmed)) {
+            setError("Please enter a valid Google Gemini API key.");
+            return;
+        }
+        onSave(trimmed);
+        closeModal?.();
+    };
+    return (SP_REACT.createElement(DFL.ConfirmModal, { strTitle: "Gemini API Key", strOKButtonText: "Save", onOK: handleOK, onCancel: closeModal, closeModal: closeModal },
+        SP_REACT.createElement(DFL.TextField, { label: "API Key", value: key, onChange: (e) => { setKey(e.target.value); setError(""); }, bIsPassword: true, focusOnMount: true }),
+        error && SP_REACT.createElement("div", { style: { color: "#ff6b6b", fontSize: 11, marginTop: 8 } }, error)));
+};
+const MessageInputModal = ({ onSend, closeModal }) => {
+    const [value, setValue] = SP_REACT.useState("");
+    return (SP_REACT.createElement(DFL.ConfirmModal, { strTitle: "Message Gemini", strOKButtonText: "Send", bOKDisabled: !value.trim(), onOK: () => { onSend(value.trim()); closeModal?.(); }, onCancel: closeModal, closeModal: closeModal }, SP_REACT.createElement(DFL.TextField, { label: "", value, onChange: (e) => setValue(e.target.value), focusOnMount: true, multiline: true })));
+};
 // ── Styles ───────────────────────────────────────────────────────────────────
 const styles = {
     root: {
@@ -170,37 +190,18 @@ const TypingIndicator = () => (SP_REACT.createElement("div", { style: styles.mes
         SP_REACT.createElement("span", { style: { ...styles.thinkingDot, animationDelay: "150ms" } }),
         SP_REACT.createElement("span", { style: { ...styles.thinkingDot, animationDelay: "300ms" } }))));
 // ── API Key Setup Screen ──────────────────────────────────────────────────────
-const ApiKeyScreen = ({ onSave }) => {
-    const [key, setKey] = SP_REACT.useState("");
-    const [error, setError] = SP_REACT.useState("");
-    const handleSave = () => {
-        const trimmed = key.trim();
-        // Gemini API keys are typically 39+ chars, alphanumeric, often start with "AIza" or similar
-        if (!/^([A-Za-z0-9_-]{35,})$/.test(trimmed)) {
-            setError("Please enter a valid Google Gemini API key.");
-            return;
-        }
-        onSave(trimmed);
-    };
-    return (SP_REACT.createElement("div", { style: styles.keyScreen },
-        SP_REACT.createElement("div", { style: styles.keyTitle }, "\uD83E\uDD16 Connect Gemini"),
-        SP_REACT.createElement("div", { style: styles.keySubtitle },
-            "Enter your ",
-            SP_REACT.createElement("span", { style: styles.keyLink }, "Google Gemini API key"),
-            " to start chatting. Get one at ",
-            " ",
-            SP_REACT.createElement("span", { style: styles.keyLink }, "ai.google.com")),
-        SP_REACT.createElement(DFL.TextField, { label: "Gemini API Key", value: key, onChange: (e) => {
-                setKey(e.target.value);
-                setError("");
-            }, bIsPassword: true }),
-        error && (SP_REACT.createElement("div", { style: { color: "#ff6b6b", fontSize: 11 } }, error)),
-        SP_REACT.createElement(DFL.ButtonItem, { layout: "below", onClick: handleSave }, "Save & Start Chatting")));
-};
+const ApiKeyScreen = ({ onSave }) => (SP_REACT.createElement("div", { style: styles.keyScreen },
+    SP_REACT.createElement("div", { style: styles.keyTitle }, "\uD83E\uDD16 Connect Gemini"),
+    SP_REACT.createElement("div", { style: styles.keySubtitle },
+        "Enter your ",
+        SP_REACT.createElement("span", { style: styles.keyLink }, "Google Gemini API key"),
+        " to start chatting. Get one at",
+        " ",
+        SP_REACT.createElement("span", { style: styles.keyLink }, "ai.google.com")),
+    SP_REACT.createElement(DFL.ButtonItem, { layout: "below", onClick: () => DFL.showModal(SP_REACT.createElement(ApiKeyModal, { onSave: onSave })) }, "Enter API Key")));
 // ── Chat Screen ───────────────────────────────────────────────────────────────
 const ChatScreen = ({ apiKey, onResetKey, }) => {
     const [messages, setMessages] = SP_REACT.useState([]);
-    const [input, setInput] = SP_REACT.useState("");
     const [loading, setLoading] = SP_REACT.useState(false);
     const [models, setModels] = SP_REACT.useState(["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-1.5-flash"]);
     const [selectedModel, setSelectedModel] = SP_REACT.useState("gemini-2.5-flash-lite");
@@ -241,13 +242,11 @@ const ChatScreen = ({ apiKey, onResetKey, }) => {
         fetchModels();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [apiKey]);
-    const sendMessage = async () => {
-        const text = input.trim();
+    const sendMessage = async (text) => {
         if (!text || loading)
             return;
         const newMessages = [...messages, { role: "user", content: text }];
         setMessages(newMessages);
-        setInput("");
         setLoading(true);
         const contents = newMessages.map((msg) => ({
             role: msg.role === "assistant" ? "model" : "user",
@@ -288,12 +287,6 @@ const ChatScreen = ({ apiKey, onResetKey, }) => {
             setLoading(false);
         }
     };
-    const handleKeyDown = (e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
-        }
-    };
     return (SP_REACT.createElement("div", { style: styles.chatWrapper },
         SP_REACT.createElement("div", { style: styles.headerRow },
             SP_REACT.createElement("div", { style: styles.headerTitle },
@@ -315,22 +308,7 @@ const ChatScreen = ({ apiKey, onResetKey, }) => {
         SP_REACT.createElement("div", { style: { ...styles.inputRow, flexDirection: "column", alignItems: "stretch", gap: 4 } },
             SP_REACT.createElement("div", { style: { display: "flex", justifyContent: "flex-end" } },
                 SP_REACT.createElement("select", { style: { minWidth: 180, fontSize: 12, padding: 4, borderRadius: 4, border: "1px solid #3a4a5a", background: "#1a1f2e", color: "#e8eaed" }, value: selectedModel, onChange: e => setSelectedModel(e.target.value), disabled: loading }, models.map((model) => (SP_REACT.createElement("option", { key: model, value: model }, model))))),
-            SP_REACT.createElement("div", { style: { display: "flex", flexDirection: "row", alignItems: "flex-end", gap: 8, width: "100%" } },
-                SP_REACT.createElement("div", { style: { flex: 3, minWidth: 0 } },
-                    SP_REACT.createElement(DeckyTextField, { label: "", value: input, placeholder: "Message Gemini...", focusable: true, multiline: true, focusOnMount: true, onChange: (e) => setInput(e.currentTarget.value), onKeyDown: handleKeyDown })),
-                SP_REACT.createElement("div", { style: {
-                        flex: '0 0 25%', // don't grow, don't shrink, stay exactly 25%
-                        maxWidth: '25%', // belt-and-suspenders cap
-                        height: 44,
-                        padding: 0,
-                        margin: 0,
-                        overflow: 'hidden', // prevent ButtonItem's internals from bleeding out
-                        alignSelf: 'stretch',
-                        display: 'flex',
-                        alignItems: 'stretch'
-                    } },
-                    SP_REACT.createElement("div", { style: { width: '100%', height: '100%' } },
-                        SP_REACT.createElement(DFL.ButtonItem, { layout: "below", onClick: sendMessage, disabled: loading || !input.trim() }, "\u2191")))))));
+            SP_REACT.createElement(DFL.ButtonItem, { layout: "below", disabled: loading, onClick: () => DFL.showModal(SP_REACT.createElement(MessageInputModal, { onSend: (text) => sendMessage(text) })) }, loading ? "Sending…" : "Type a message…"))));
 };
 // ── Root Component ────────────────────────────────────────────────────────────
 const Content = () => {
