@@ -26,7 +26,66 @@ const definePlugin = (fn) => {
 const getApiKey = callable("get_api_key");
 const setApiKey = callable("set_api_key");
 const clearApiKey = callable("clear_api_key");
-const DeckyTextField = DFL.TextField;
+// Message written by the modal, consumed by ChatScreen's own poll — avoids
+// any cross-React-root state-update issues with showModal.
+let pendingMessage = null;
+// ── Modal text input components (keyboard renders above QAM when in a modal) ──
+// Steam's keyboard may write directly to the DOM without firing React onChange,
+// so we read the DOM input value directly at submit time as the source of truth.
+const ApiKeyModal = ({ onSave, closeModal }) => {
+    const containerRef = SP_REACT.useRef(null);
+    const handleOK = () => {
+        const el = containerRef.current?.querySelector("input");
+        const trimmed = (el?.value ?? "").trim();
+        if (!/^([A-Za-z0-9_-]{35,})$/.test(trimmed))
+            return; // invalid key — keep modal open
+        onSave(trimmed);
+        closeModal?.();
+    };
+    return (SP_REACT.createElement(DFL.ConfirmModal, { strTitle: "Gemini API Key", strOKButtonText: "Save", onOK: handleOK, onCancel: closeModal, closeModal: closeModal },
+        SP_REACT.createElement("div", { ref: containerRef },
+            SP_REACT.createElement(DFL.TextField, { label: "API Key", bIsPassword: true, focusOnMount: true }))));
+};
+// Walk into shadow DOM to find any input/textarea, since Steam UI components
+// may encapsulate their internals behind a shadow root.
+const findInput = (root) => {
+    if (!root)
+        return null;
+    const el = root.querySelector?.("input, textarea");
+    if (el)
+        return el;
+    for (const child of root.querySelectorAll?.("*") ?? []) {
+        if (child.shadowRoot) {
+            const found = findInput(child.shadowRoot);
+            if (found)
+                return found;
+        }
+    }
+    return null;
+};
+const MessageInputModal = ({ closeModal }) => {
+    const containerRef = SP_REACT.useRef(null);
+    const valueRef = SP_REACT.useRef("");
+    SP_REACT.useEffect(() => {
+        // Poll DOM value — Steam keyboard injects text directly without firing JS events.
+        const id = setInterval(() => {
+            const el = findInput(containerRef.current);
+            if (el)
+                valueRef.current = el.value;
+        }, 50);
+        return () => clearInterval(id);
+    }, []);
+    const handleSend = () => {
+        const el = findInput(containerRef.current);
+        const text = (el?.value || valueRef.current).trim();
+        if (text)
+            pendingMessage = text; // ChatScreen's poll will pick this up
+        closeModal?.();
+    };
+    return (SP_REACT.createElement(DFL.ConfirmModal, { strTitle: "Message Gemini", strOKButtonText: "Send", onOK: handleSend, onCancel: closeModal, closeModal: closeModal },
+        SP_REACT.createElement("div", { ref: containerRef },
+            SP_REACT.createElement(DFL.TextField, { label: "", focusOnMount: true, onChange: (e) => { valueRef.current = e.currentTarget.value; } }))));
+};
 // ── Styles ───────────────────────────────────────────────────────────────────
 const styles = {
     root: {
@@ -170,38 +229,21 @@ const TypingIndicator = () => (SP_REACT.createElement("div", { style: styles.mes
         SP_REACT.createElement("span", { style: { ...styles.thinkingDot, animationDelay: "150ms" } }),
         SP_REACT.createElement("span", { style: { ...styles.thinkingDot, animationDelay: "300ms" } }))));
 // ── API Key Setup Screen ──────────────────────────────────────────────────────
-const ApiKeyScreen = ({ onSave }) => {
-    const [key, setKey] = SP_REACT.useState("");
-    const [error, setError] = SP_REACT.useState("");
-    const handleSave = () => {
-        const trimmed = key.trim();
-        // Gemini API keys are typically 39+ chars, alphanumeric, often start with "AIza" or similar
-        if (!/^([A-Za-z0-9_-]{35,})$/.test(trimmed)) {
-            setError("Please enter a valid Google Gemini API key.");
-            return;
-        }
-        onSave(trimmed);
-    };
-    return (SP_REACT.createElement("div", { style: styles.keyScreen },
-        SP_REACT.createElement("div", { style: styles.keyTitle }, "\uD83E\uDD16 Connect Gemini"),
-        SP_REACT.createElement("div", { style: styles.keySubtitle },
-            "Enter your ",
-            SP_REACT.createElement("span", { style: styles.keyLink }, "Google Gemini API key"),
-            " to start chatting. Get one at ",
-            " ",
-            SP_REACT.createElement("span", { style: styles.keyLink }, "ai.google.com")),
-        SP_REACT.createElement(DFL.TextField, { label: "Gemini API Key", value: key, onChange: (e) => {
-                setKey(e.target.value);
-                setError("");
-            }, bIsPassword: true }),
-        error && (SP_REACT.createElement("div", { style: { color: "#ff6b6b", fontSize: 11 } }, error)),
-        SP_REACT.createElement(DFL.ButtonItem, { layout: "below", onClick: handleSave }, "Save & Start Chatting")));
-};
+const ApiKeyScreen = ({ onSave }) => (SP_REACT.createElement("div", { style: styles.keyScreen },
+    SP_REACT.createElement("div", { style: styles.keyTitle }, "\uD83E\uDD16 Connect Gemini"),
+    SP_REACT.createElement("div", { style: styles.keySubtitle },
+        "Enter your ",
+        SP_REACT.createElement("span", { style: styles.keyLink }, "Google Gemini API key"),
+        " to start chatting. Get one at",
+        " ",
+        SP_REACT.createElement("span", { style: styles.keyLink }, "ai.google.com")),
+    SP_REACT.createElement(DFL.ButtonItem, { layout: "below", onClick: () => DFL.showModal(SP_REACT.createElement(ApiKeyModal, { onSave: onSave })) }, "Enter API Key")));
 // ── Chat Screen ───────────────────────────────────────────────────────────────
 const ChatScreen = ({ apiKey, onResetKey, }) => {
     const [messages, setMessages] = SP_REACT.useState([]);
-    const [input, setInput] = SP_REACT.useState("");
     const [loading, setLoading] = SP_REACT.useState(false);
+    const messagesRef = SP_REACT.useRef([]);
+    messagesRef.current = messages; // always up-to-date, no stale closure
     const [models, setModels] = SP_REACT.useState(["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-1.5-flash"]);
     const [selectedModel, setSelectedModel] = SP_REACT.useState("gemini-2.5-flash-lite");
     const bottomRef = SP_REACT.useRef(null);
@@ -241,13 +283,24 @@ const ChatScreen = ({ apiKey, onResetKey, }) => {
         fetchModels();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [apiKey]);
-    const sendMessage = async () => {
-        const text = input.trim();
+    // Poll for messages submitted via the modal. Runs inside ChatScreen's own
+    // React tree so setMessages/setLoading update the correct root.
+    SP_REACT.useEffect(() => {
+        const id = setInterval(() => {
+            if (pendingMessage) {
+                const text = pendingMessage;
+                pendingMessage = null;
+                sendMessageRef.current(text);
+            }
+        }, 100);
+        return () => clearInterval(id);
+    }, []);
+    const sendMessageRef = SP_REACT.useRef(() => { });
+    const sendMessage = async (text) => {
         if (!text || loading)
             return;
-        const newMessages = [...messages, { role: "user", content: text }];
+        const newMessages = [...messagesRef.current, { role: "user", content: text }];
         setMessages(newMessages);
-        setInput("");
         setLoading(true);
         const contents = newMessages.map((msg) => ({
             role: msg.role === "assistant" ? "model" : "user",
@@ -288,12 +341,7 @@ const ChatScreen = ({ apiKey, onResetKey, }) => {
             setLoading(false);
         }
     };
-    const handleKeyDown = (e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
-        }
-    };
+    sendMessageRef.current = sendMessage;
     return (SP_REACT.createElement("div", { style: styles.chatWrapper },
         SP_REACT.createElement("div", { style: styles.headerRow },
             SP_REACT.createElement("div", { style: styles.headerTitle },
@@ -315,22 +363,7 @@ const ChatScreen = ({ apiKey, onResetKey, }) => {
         SP_REACT.createElement("div", { style: { ...styles.inputRow, flexDirection: "column", alignItems: "stretch", gap: 4 } },
             SP_REACT.createElement("div", { style: { display: "flex", justifyContent: "flex-end" } },
                 SP_REACT.createElement("select", { style: { minWidth: 180, fontSize: 12, padding: 4, borderRadius: 4, border: "1px solid #3a4a5a", background: "#1a1f2e", color: "#e8eaed" }, value: selectedModel, onChange: e => setSelectedModel(e.target.value), disabled: loading }, models.map((model) => (SP_REACT.createElement("option", { key: model, value: model }, model))))),
-            SP_REACT.createElement("div", { style: { display: "flex", flexDirection: "row", alignItems: "flex-end", gap: 8, width: "100%" } },
-                SP_REACT.createElement("div", { style: { flex: 3, minWidth: 0 } },
-                    SP_REACT.createElement(DeckyTextField, { label: "", value: input, placeholder: "Message Gemini...", focusable: true, multiline: true, focusOnMount: true, onChange: (e) => setInput(e.currentTarget.value), onKeyDown: handleKeyDown })),
-                SP_REACT.createElement("div", { style: {
-                        flex: '0 0 25%', // don't grow, don't shrink, stay exactly 25%
-                        maxWidth: '25%', // belt-and-suspenders cap
-                        height: 44,
-                        padding: 0,
-                        margin: 0,
-                        overflow: 'hidden', // prevent ButtonItem's internals from bleeding out
-                        alignSelf: 'stretch',
-                        display: 'flex',
-                        alignItems: 'stretch'
-                    } },
-                    SP_REACT.createElement("div", { style: { width: '100%', height: '100%' } },
-                        SP_REACT.createElement(DFL.ButtonItem, { layout: "below", onClick: sendMessage, disabled: loading || !input.trim() }, "\u2191")))))));
+            SP_REACT.createElement(DFL.ButtonItem, { layout: "below", disabled: loading, onClick: () => DFL.showModal(SP_REACT.createElement(MessageInputModal, null)) }, loading ? "Sending…" : "Type a message…"))));
 };
 // ── Root Component ────────────────────────────────────────────────────────────
 const Content = () => {

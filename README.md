@@ -32,9 +32,13 @@ I have included the 'node_modules' and 'dist' directories prebuilt on this repo 
    ```
    This produces a `dist/index.js` bundle.
 
-2. **Copy the plugin folder** to your Steam Deck:
+2. **Copy the plugin folder** to your Steam Deck (needs sudo or root access):
    ```
-   ~/.local/share/decky-loader/plugins/GeminiAI/
+   ~/.local/share/decky-loader/plugins/
+   ```
+   If you installed using homebrew, paste it inside the the plugins folder should be in
+   ```
+   ~/homebrew/plugins/
    ```
    The folder should contain:
    ```
