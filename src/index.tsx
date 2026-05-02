@@ -21,34 +21,78 @@ interface Message {
   content: string;
 }
 
+// Message written by the modal, consumed by ChatScreen's own poll — avoids
+// any cross-React-root state-update issues with showModal.
+let pendingMessage: string | null = null;
+
 // ── Modal text input components (keyboard renders above QAM when in a modal) ──
+// Steam's keyboard may write directly to the DOM without firing React onChange,
+// so we read the DOM input value directly at submit time as the source of truth.
+
 const ApiKeyModal: FC<{ onSave: (key: string) => void; closeModal?: () => void }> = ({ onSave, closeModal }) => {
-  const [key, setKey] = useState("");
-  const [error, setError] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const handleOK = () => {
-    const trimmed = key.trim();
-    if (!/^([A-Za-z0-9_-]{35,})$/.test(trimmed)) {
-      setError("Please enter a valid Google Gemini API key.");
-      return;
-    }
+    const el = containerRef.current?.querySelector("input") as HTMLInputElement | null;
+    const trimmed = (el?.value ?? "").trim();
+    if (!/^([A-Za-z0-9_-]{35,})$/.test(trimmed)) return; // invalid key — keep modal open
     onSave(trimmed);
     closeModal?.();
   };
 
   return (
     <ConfirmModal strTitle="Gemini API Key" strOKButtonText="Save" onOK={handleOK} onCancel={closeModal} closeModal={closeModal}>
-      <TextField label="API Key" value={key} onChange={(e) => { setKey(e.target.value); setError(""); }} bIsPassword focusOnMount />
-      {error && <div style={{ color: "#ff6b6b", fontSize: 11, marginTop: 8 }}>{error}</div>}
+      <div ref={containerRef}>
+        <TextField label="API Key" bIsPassword focusOnMount />
+      </div>
     </ConfirmModal>
   );
 };
 
-const MessageInputModal: FC<{ onSend: (text: string) => void; closeModal?: () => void }> = ({ onSend, closeModal }) => {
-  const [value, setValue] = useState("");
+// Walk into shadow DOM to find any input/textarea, since Steam UI components
+// may encapsulate their internals behind a shadow root.
+const findInput = (root: Element | ShadowRoot | null): HTMLInputElement | null => {
+  if (!root) return null;
+  const el = (root as Element).querySelector?.("input, textarea") as HTMLInputElement | null;
+  if (el) return el;
+  for (const child of (root as Element).querySelectorAll?.("*") ?? []) {
+    if ((child as any).shadowRoot) {
+      const found = findInput((child as any).shadowRoot);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
+const MessageInputModal: FC<{ closeModal?: () => void }> = ({ closeModal }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const valueRef = useRef("");
+
+  useEffect(() => {
+    // Poll DOM value — Steam keyboard injects text directly without firing JS events.
+    const id = setInterval(() => {
+      const el = findInput(containerRef.current);
+      if (el) valueRef.current = el.value;
+    }, 50);
+    return () => clearInterval(id);
+  }, []);
+
+  const handleSend = () => {
+    const el = findInput(containerRef.current);
+    const text = (el?.value || valueRef.current).trim();
+    if (text) pendingMessage = text; // ChatScreen's poll will pick this up
+    closeModal?.();
+  };
+
   return (
-    <ConfirmModal strTitle="Message Gemini" strOKButtonText="Send" bOKDisabled={!value.trim()} onOK={() => { onSend(value.trim()); closeModal?.(); }} onCancel={closeModal} closeModal={closeModal}>
-      {React.createElement(TextField as any, { label: "", value, onChange: (e: any) => setValue(e.target.value), focusOnMount: true, multiline: true })}
+    <ConfirmModal strTitle="Message Gemini" strOKButtonText="Send" onOK={handleSend} onCancel={closeModal} closeModal={closeModal}>
+      <div ref={containerRef}>
+        <TextField
+          label=""
+          focusOnMount
+          onChange={(e) => { valueRef.current = e.currentTarget.value; }}
+        />
+      </div>
     </ConfirmModal>
   );
 };
@@ -244,6 +288,8 @@ const ChatScreen: FC<{ apiKey: string; onResetKey: () => void }> = ({
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
+  const messagesRef = useRef<Message[]>([]);
+  messagesRef.current = messages; // always up-to-date, no stale closure
   const [models, setModels] = useState<string[]>(["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-1.5-flash"]);
   const [selectedModel, setSelectedModel] = useState<string>("gemini-2.5-flash-lite");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -286,10 +332,25 @@ const ChatScreen: FC<{ apiKey: string; onResetKey: () => void }> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiKey]);
 
+  // Poll for messages submitted via the modal. Runs inside ChatScreen's own
+  // React tree so setMessages/setLoading update the correct root.
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (pendingMessage) {
+        const text = pendingMessage;
+        pendingMessage = null;
+        sendMessageRef.current(text);
+      }
+    }, 100);
+    return () => clearInterval(id);
+  }, []);
+
+  const sendMessageRef = useRef<(t: string) => void>(() => {});
+
   const sendMessage = async (text: string) => {
     if (!text || loading) return;
 
-    const newMessages: Message[] = [...messages, { role: "user", content: text }];
+    const newMessages: Message[] = [...messagesRef.current, { role: "user", content: text }];
     setMessages(newMessages);
     setLoading(true);
 
@@ -336,6 +397,8 @@ const ChatScreen: FC<{ apiKey: string; onResetKey: () => void }> = ({
       setLoading(false);
     }
   };
+
+  sendMessageRef.current = sendMessage;
 
   return (
     <div style={styles.chatWrapper}>
@@ -401,7 +464,7 @@ const ChatScreen: FC<{ apiKey: string; onResetKey: () => void }> = ({
         <ButtonItem
           layout="below"
           disabled={loading}
-          onClick={() => showModal(<MessageInputModal onSend={(text) => sendMessage(text)} />)}
+          onClick={() => showModal(<MessageInputModal />)}
         >
           {loading ? "Sending…" : "Type a message…"}
         </ButtonItem>
