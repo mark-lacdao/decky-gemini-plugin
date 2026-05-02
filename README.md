@@ -23,7 +23,7 @@ Chat with Google Gemini directly from your Steam Deck's Quick Access Menu.
 
 ## Installation (Manual / Sideload)
 
-I have included the 'node_modules' and 'dist' directories prebuilt on this repo for those who doesnt have npm installed on their machines.
+I have included the 'node_modules' and 'dist' directories prebuilt on this repo for those who doesnt have npm installed on their machines. So you dont have to do the Build the plugin step #1 below.
 
 1. **Build the plugin** (on a dev machine with Node.js 18+):
    ```bash
