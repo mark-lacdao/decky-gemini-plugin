@@ -1,11 +1,11 @@
 {
   "name": "GeminiAI",
-  "author": "You",
+  "author": "mark-lacdao",
   "flags": [],
   "api_version": 1,
   "publish": {
     "description": "Chat with Google Gemini directly from your Steam Deck.",
-    "image": "",
+    "image": "https://raw.githubusercontent.com/mark-lacdao/decky-gemini-plugin/main/assets/logo.png",
     "tags": ["ai", "chat", "utility"]
   }
 }
