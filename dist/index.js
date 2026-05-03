@@ -240,6 +240,7 @@ const ApiKeyScreen = ({ onSave }) => (SP_REACT.createElement("div", { style: sty
     SP_REACT.createElement(DFL.ButtonItem, { layout: "below", onClick: () => DFL.showModal(SP_REACT.createElement(ApiKeyModal, { onSave: onSave })) }, "Enter API Key")));
 // ── Chat Screen ───────────────────────────────────────────────────────────────
 const ChatScreen = ({ apiKey, onResetKey, }) => {
+    const [view, setView] = SP_REACT.useState("chat");
     const [messages, setMessages] = SP_REACT.useState([]);
     const [loading, setLoading] = SP_REACT.useState(false);
     const messagesRef = SP_REACT.useRef([]);
@@ -342,6 +343,32 @@ const ChatScreen = ({ apiKey, onResetKey, }) => {
         }
     };
     sendMessageRef.current = sendMessage;
+    if (view === "settings")
+        return (SP_REACT.createElement("div", { style: styles.chatWrapper },
+            SP_REACT.createElement("div", { style: styles.headerRow },
+                SP_REACT.createElement("button", { style: styles.clearBtn, onClick: () => setView("chat") }, "\u2190 Back"),
+                SP_REACT.createElement("div", { style: { ...styles.headerTitle, fontSize: 13 } }, "Settings")),
+            SP_REACT.createElement("div", { style: { flex: 1, overflowY: "auto", padding: "12px" } },
+                SP_REACT.createElement("div", { style: { marginBottom: 16 } },
+                    SP_REACT.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "#67c1f5", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 } }, "Account"),
+                    SP_REACT.createElement(DFL.ButtonItem, { layout: "below", onClick: onResetKey }, "Change API Key")),
+                SP_REACT.createElement("div", null,
+                    SP_REACT.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "#67c1f5", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 } }, "About"),
+                    SP_REACT.createElement("div", { style: { background: "#1e2a38", borderRadius: 8, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 6 } },
+                        SP_REACT.createElement("div", { style: { display: "flex", justifyContent: "space-between" } },
+                            SP_REACT.createElement("span", { style: { color: "#8f98a0", fontSize: 12 } }, "Plugin"),
+                            SP_REACT.createElement("span", { style: { color: "#e8eaed", fontSize: 12 } }, "Gemini AI")),
+                        SP_REACT.createElement("div", { style: { display: "flex", justifyContent: "space-between" } },
+                            SP_REACT.createElement("span", { style: { color: "#8f98a0", fontSize: 12 } }, "Version"),
+                            SP_REACT.createElement("span", { style: { color: "#e8eaed", fontSize: 12 } }, "1.0.0")),
+                        SP_REACT.createElement("div", { style: { display: "flex", justifyContent: "space-between" } },
+                            SP_REACT.createElement("span", { style: { color: "#8f98a0", fontSize: 12 } }, "Created by"),
+                            SP_REACT.createElement("span", { style: { color: "#e8eaed", fontSize: 12 } }, "Mark Lacdao"),
+                            SP_REACT.createElement("span", { style: { color: "#e8eaed", fontSize: 12 } }, "https://github.com/mark-lacdao")),
+                        SP_REACT.createElement("div", { style: { display: "flex", justifyContent: "space-between" } },
+                            SP_REACT.createElement("span", { style: { color: "#8f98a0", fontSize: 12 } }, "Powered by"),
+                            SP_REACT.createElement("span", { style: { color: "#e8eaed", fontSize: 12 } }, "Google Gemini API")),
+                        SP_REACT.createElement("div", { style: { borderTop: "1px solid #2a3a4a", marginTop: 4, paddingTop: 8, color: "#8f98a0", fontSize: 11, lineHeight: 1.6 } }, "Chat with Google Gemini directly from your Steam Deck."))))));
     return (SP_REACT.createElement("div", { style: styles.chatWrapper },
         SP_REACT.createElement("div", { style: styles.headerRow },
             SP_REACT.createElement("div", { style: styles.headerTitle },
@@ -349,7 +376,7 @@ const ChatScreen = ({ apiKey, onResetKey, }) => {
                 SP_REACT.createElement("span", null, "Gemini AI")),
             SP_REACT.createElement("div", { style: { display: "flex", gap: 6 } },
                 SP_REACT.createElement("button", { style: styles.clearBtn, onClick: () => setMessages([]) }, "Clear"),
-                SP_REACT.createElement("button", { style: styles.clearBtn, onClick: onResetKey }, "API Key"))),
+                SP_REACT.createElement("button", { style: styles.clearBtn, onClick: () => setView("settings") }, "\u2699"))),
         SP_REACT.createElement("div", { style: styles.messagesContainer },
             messages.length === 0 && !loading && (SP_REACT.createElement("div", { style: styles.emptyState },
                 SP_REACT.createElement("div", { style: { fontSize: 28, marginBottom: 8 } }, "\u2726"),
