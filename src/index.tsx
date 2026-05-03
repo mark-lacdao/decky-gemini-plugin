@@ -286,6 +286,7 @@ const ChatScreen: FC<{ apiKey: string; onResetKey: () => void }> = ({
   apiKey,
   onResetKey,
 }) => {
+  const [view, setView] = useState<"chat" | "settings">("chat");
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const messagesRef = useRef<Message[]>([]);
@@ -400,6 +401,54 @@ const ChatScreen: FC<{ apiKey: string; onResetKey: () => void }> = ({
 
   sendMessageRef.current = sendMessage;
 
+  if (view === "settings") return (
+    <div style={styles.chatWrapper}>
+      <div style={styles.headerRow}>
+        <button style={styles.clearBtn} onClick={() => setView("chat")}>← Back</button>
+        <div style={{ ...styles.headerTitle, fontSize: 13 }}>Settings</div>
+      </div>
+      <div style={{ flex: 1, overflowY: "auto", padding: "12px" }}>
+        {/* API Key management */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#67c1f5", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+            Account
+          </div>
+          <ButtonItem layout="below" onClick={onResetKey}>
+            Change API Key
+          </ButtonItem>
+        </div>
+        {/* About */}
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#67c1f5", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+            About
+          </div>
+          <div style={{ background: "#1e2a38", borderRadius: 8, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: "#8f98a0", fontSize: 12 }}>Plugin</span>
+              <span style={{ color: "#e8eaed", fontSize: 12 }}>Gemini AI</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: "#8f98a0", fontSize: 12 }}>Version</span>
+              <span style={{ color: "#e8eaed", fontSize: 12 }}>1.0.0</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: "#8f98a0", fontSize: 12 }}>Created by</span>
+              <span style={{ color: "#e8eaed", fontSize: 12 }}>Mark Lacdao</span>
+              <span style={{ color: "#e8eaed", fontSize: 12 }}>https://github.com/mark-lacdao</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: "#8f98a0", fontSize: 12 }}>Powered by</span>
+              <span style={{ color: "#e8eaed", fontSize: 12 }}>Google Gemini API</span>
+            </div>
+            <div style={{ borderTop: "1px solid #2a3a4a", marginTop: 4, paddingTop: 8, color: "#8f98a0", fontSize: 11, lineHeight: 1.6 }}>
+              Chat with Google Gemini directly from your Steam Deck.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div style={styles.chatWrapper}>
       {/* Header */}
@@ -409,18 +458,8 @@ const ChatScreen: FC<{ apiKey: string; onResetKey: () => void }> = ({
           <span>Gemini AI</span>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
-          <button
-            style={styles.clearBtn}
-            onClick={() => setMessages([])}
-          >
-            Clear
-          </button>
-          <button
-            style={styles.clearBtn}
-            onClick={onResetKey}
-          >
-            API Key
-          </button>
+          <button style={styles.clearBtn} onClick={() => setMessages([])}>Clear</button>
+          <button style={styles.clearBtn} onClick={() => setView("settings")}>⚙</button>
         </div>
       </div>
 
