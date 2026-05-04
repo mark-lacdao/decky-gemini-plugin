@@ -3,6 +3,8 @@
 
 Chat with Google Gemini directly from your Steam Deck's Quick Access Menu.
 
+![GeminiAI Screenshot](assets/screenshot.jpeg)
+
 ---
 
 ## Features
