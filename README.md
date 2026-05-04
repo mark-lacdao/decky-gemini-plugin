@@ -9,10 +9,11 @@ Chat with Google Gemini directly from your Steam Deck's Quick Access Menu.
 
 ## Features
 
-- 💬 Full chat interface with Google Gemini (gemini-2.5-flash model)
+- 💬 Full chat interface with Google Gemini
+- 🔄 Switch between Gemini models (gemini-2.5-flash-lite, gemini-2.5-flash, gemini-1.5-flash) via an in-chat dropdown
 - 🔑 Secure API key storage on-device
 - 🧹 Clear chat history anytime
-- 🔄 Change/reset API key from within the plugin
+- ⚙️ Change/reset API key from the Settings page
 
 ---
 
@@ -86,4 +87,4 @@ Use the [Decky CLI](https://github.com/SteamDeckHomebrew/cli) for hot-reloading 
 
 - API calls are made directly from the Steam Deck to `generativelanguage.googleapis.com`.
 - Your API key is stored locally in Decky's settings directory and never leaves your device.
-- Default model: `gemini-2.5-flash`. Edit `src/index.tsx` to switch models.
+- Default model: `gemini-2.5-flash-lite`. You can switch models using the dropdown at the bottom of the chat screen.
